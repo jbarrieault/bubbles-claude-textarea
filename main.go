@@ -19,7 +19,6 @@ func initialModel() model {
 	ta := textarea.New()
 	ta.Placeholder = "Placeholder..."
 	ta.Focus()
-	ta.MaxHeight = 3
 	ta.ShowLineNumbers = false
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 	ta.SetPromptFunc(2, func(lineIdx int) string {
@@ -29,7 +28,7 @@ func initialModel() model {
 		return "  "
 	})
 	ta.SetHeight(1)
-	ta.SetWidth(30)
+	// ta.MaxHeight = 3
 
 	ta.FocusedStyle.Base = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -68,6 +67,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// This program attempts to use a textarea to make an input that grows its height dynamically based on the content.
+// The dynamic height should take into account both soft and hard line breaks.
+
+// Latest Implementation Idea (doesn't appear to work):
+// - render the text area
+// - measure its height, subtract the border height
+// - set the height of the text area to the measured height (or clamp to max height)
+// - render the text area again
+
+// I think the flaw in my logic has to do with m.textarea.View() i'm using to measure is constrainted
+// its current (...more like previous) height.
+
 func (m model) View() string {
 	layout := lipgloss.NewStyle().
 		Width(m.width).
@@ -75,8 +86,15 @@ func (m model) View() string {
 		Align(lipgloss.Center)
 
 	textArea := m.textarea.View()
-	textAreaHeight := lipgloss.Height(textArea)
-	textAreaWidth := lipgloss.Width(textArea)
+	textAreaMeasuredHeight := lipgloss.Height(textArea)
+
+	initialTextAreaHeight := m.textarea.Height()
+
+	m.textarea.SetHeight(textAreaMeasuredHeight - 2)
+	textArea = m.textarea.View()
+
+	newTextAreaHeight := m.textarea.Height()
+	newTextAreaMeasuredHeight := lipgloss.Height(textArea)
 
 	lineInfo := m.textarea.LineInfo()
 	lineCount := m.textarea.LineCount()
@@ -84,8 +102,21 @@ func (m model) View() string {
 	debugInfo := lipgloss.NewStyle().
 		Width(m.width).
 		Foreground(lipgloss.Color("240")).
-		Align(lipgloss.Center).
-		Render(fmt.Sprintf("m.width: %d, m.height: %d, textarea.Width: %d, textarea.Height: %d, textAreaHeight: %d, textAreaWidth: %d, lineInfo.Height: %d, lineCount: %d", m.width, m.height, m.textarea.Width(), m.textarea.Height(), textAreaHeight, textAreaWidth, lineInfo.Height, lineCount))
+		Align(lipgloss.Left).
+		Render(fmt.Sprintf(
+			"initialTextAreaHeight: %d,\n"+
+				"newTextAreaHeight: %d,\n"+
+				"textAreaMeasuredHeight: %d,\n"+
+				"newTextAreaMeasuredHeight: %d,\n"+
+				"lineInfo.Height: %d,\n"+
+				"lineCount: %d",
+			initialTextAreaHeight,
+			newTextAreaHeight,
+			textAreaMeasuredHeight,
+			newTextAreaMeasuredHeight,
+			lineInfo.Height,
+			lineCount,
+		))
 
 	inputContent := lipgloss.NewStyle().
 		Width(m.width).
@@ -105,7 +136,7 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
